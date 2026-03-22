@@ -1,16 +1,25 @@
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
-from app.models.vendor_model import Vendor
-from app.models.product_model import Product
+import app.models
+from app.models.product_model import ProductStatus  # This initializes all models & configures mappers
 
+Vendor = app.models.Vendor
+Product = app.models.Product
 
 def seed_data():
-    db: Session = SessionLocal()
+    db = SessionLocal()
     try:
-        # ── Idempotent: skip if already seeded ────────────────────────
-        if db.query(Vendor).count() > 0:
-            print("Seed data already exists — skipping.")
+        # Check if already fully seeded
+        if db.query(Vendor).count() >= 3 and db.query(Product).count() >= 6:
+            print("[SUCCESS] Seed data already fully populated - skipping.")
             return
+
+        print("[WARNING] Incomplete or legacy dummy data detected. Resetting catalog for dummy data...")
+        
+        # Clear out tables to ensure a clean state, avoiding unique constraint conflicts
+        db.query(Product).delete()
+        db.query(Vendor).delete()
+        db.commit()
 
         # ── 1. Seed Vendors ───────────────────────────────────────────
         vendors = [
@@ -52,11 +61,12 @@ def seed_data():
             ),
         ]
         db.add_all(vendors)
-        db.flush()  # get IDs before inserting products
+        db.flush()  # assign IDs before inserting products
 
         # ── 2. Seed Products ────────────────────────────────────────────
         products = [
             Product(
+                product_id=1,
                 vendor_id=1,
                 product_name="Industrial Steel Rod",
                 category_name="Steel",
@@ -72,9 +82,10 @@ def seed_data():
                 reorder_alert_level=30,
                 unit_of_measure="kg",
                 product_description="High-tensile industrial steel rod for structural applications.",
-                is_active=True,
+                status=ProductStatus.PUBLISHED,
             ),
             Product(
+                product_id=2,
                 vendor_id=2,
                 product_name="Copper Wire Roll",
                 category_name="Electrical",
@@ -90,9 +101,10 @@ def seed_data():
                 reorder_alert_level=20,
                 unit_of_measure="roll",
                 product_description="Premium copper wire roll for electrical installations.",
-                is_active=True,
+                status=ProductStatus.PUBLISHED,
             ),
             Product(
+                product_id=3,
                 vendor_id=3,
                 product_name="Aluminium Sheet 3mm",
                 category_name="Metal",
@@ -108,9 +120,10 @@ def seed_data():
                 reorder_alert_level=15,
                 unit_of_measure="sheet",
                 product_description="3mm aluminium sheet, ideal for fabrication and cladding.",
-                is_active=True,
+                status=ProductStatus.PUBLISHED,
             ),
             Product(
+                product_id=4,
                 vendor_id=1,
                 product_name="MS Angle Iron 50x50mm",
                 category_name="Steel",
@@ -126,9 +139,10 @@ def seed_data():
                 reorder_alert_level=50,
                 unit_of_measure="meter",
                 product_description="Mild steel angle iron for construction and framing.",
-                is_active=True,
+                status=ProductStatus.PUBLISHED,
             ),
             Product(
+                product_id=5,
                 vendor_id=2,
                 product_name="PVC Conduit Pipe 25mm",
                 category_name="Electrical",
@@ -144,9 +158,10 @@ def seed_data():
                 reorder_alert_level=30,
                 unit_of_measure="piece",
                 product_description="Rigid PVC conduit for electrical cabling protection.",
-                is_active=True,
+                status=ProductStatus.PUBLISHED,
             ),
             Product(
+                product_id=6,
                 vendor_id=3,
                 product_name="Stainless Steel Plate 6mm",
                 category_name="Metal",
@@ -162,19 +177,18 @@ def seed_data():
                 reorder_alert_level=10,
                 unit_of_measure="sheet",
                 product_description="Grade 304 stainless steel plate for industrial use.",
-                is_active=True,
+                status=ProductStatus.PUBLISHED,
             ),
         ]
         db.add_all(products)
         db.commit()
-        print("✅ Seed data inserted: 3 vendors, 6 products.")
+        print("[SUCCESS] Seed data inserted: 3 vendors, 6 products.")
 
     except Exception as e:
         db.rollback()
-        print(f"❌ Seeding failed: {e}")
+        print(f"[ERROR] Seeding failed: {e}")
     finally:
         db.close()
-
 
 if __name__ == "__main__":
     seed_data()

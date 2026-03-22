@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, asc, desc
 
-from app.models.product_model import Product
+from app.models.product_model import Product, ProductStatus
 from app.schemas.product_schema import ProductCreate, ProductUpdate, ProductFilterQuery
 
 
@@ -39,7 +39,7 @@ class ProductRepository:
         page: int,
         limit: int,
     ) -> tuple[list[Product], int]:
-        query = db.query(Product).filter(Product.is_active == True)
+        query = db.query(Product).filter(Product.status == ProductStatus.PUBLISHED)
 
         if filters.search:
             query = query.filter(
@@ -87,7 +87,10 @@ class ProductRepository:
 
     @staticmethod
     def create(db: Session, payload: ProductCreate) -> Product:
-        product = Product(**payload.model_dump())
+        product_data = payload.model_dump()
+        product_data["status"] = ProductStatus.DRAFT
+        product_data["reserved_stock_quantity"] = 0
+        product = Product(**product_data)
         db.add(product)
         db.commit()
         db.refresh(product)
@@ -111,22 +114,22 @@ class ProductRepository:
 
     @staticmethod
     def soft_delete(db: Session, product: Product) -> None:
-        """Soft delete: sets is_active=False. Row is never removed."""
-        product.is_active = False
+        """Soft delete: sets status=ARCHIVED. Row is never removed."""
+        product.status = ProductStatus.ARCHIVED
         db.commit()
 
     # ── Analytics Queries ─────────────────────────────────────────────
 
     @staticmethod
     def get_active_count(db: Session) -> int:
-        return db.query(Product).filter(Product.is_active == True).count()
+        return db.query(Product).filter(Product.status == ProductStatus.PUBLISHED).count()
 
     @staticmethod
     def get_low_stock_products(db: Session) -> list[Product]:
         return (
             db.query(Product)
             .filter(
-                Product.is_active == True,
+                Product.status == ProductStatus.PUBLISHED,
                 Product.available_stock_quantity > 0,
                 Product.available_stock_quantity <= Product.reorder_alert_level,
             )
@@ -138,7 +141,7 @@ class ProductRepository:
     def get_out_of_stock_count(db: Session) -> int:
         return (
             db.query(Product)
-            .filter(Product.is_active == True, Product.available_stock_quantity <= 0)
+            .filter(Product.status == ProductStatus.PUBLISHED, Product.available_stock_quantity <= 0)
             .count()
         )
 
@@ -146,7 +149,7 @@ class ProductRepository:
     def get_category_distribution(db: Session) -> list[tuple]:
         return (
             db.query(Product.category_name, func.count(Product.product_id).label("product_count"))
-            .filter(Product.is_active == True)
+            .filter(Product.status == ProductStatus.PUBLISHED)
             .group_by(Product.category_name)
             .order_by(desc("product_count"))
             .all()

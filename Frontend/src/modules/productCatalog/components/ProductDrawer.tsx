@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import type { ProductListItem, ProductDetail } from "../types/product";
 import { catalogApi } from "../services/productService";
 import StockBadge from "./StockBadge";
+import AlertPanel from "./AlertPanel";
+import RFQModal from "./RFQModal";
 
 interface Props {
     product: ProductListItem | null;
@@ -22,6 +24,7 @@ const row = (label: string, value: React.ReactNode) => (
 const ProductDrawer: React.FC<Props> = ({ product, onClose }) => {
     const [detail, setDetail] = useState<ProductDetail | null>(null);
     const [loading, setLoading] = useState(false);
+    const [showRfq, setShowRfq] = useState(false);
 
     useEffect(() => {
         if (!product) { setDetail(null); return; }
@@ -80,6 +83,8 @@ const ProductDrawer: React.FC<Props> = ({ product, onClose }) => {
                 </div>
 
                 <div style={{ padding: "20px 24px", flex: 1 }}>
+                    <AlertPanel productId={product.product_id} />
+
                     {/* Quick pills */}
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "20px" }}>
                         <StockBadge status={product.stock_status} />
@@ -96,7 +101,7 @@ const ProductDrawer: React.FC<Props> = ({ product, onClose }) => {
                     </div>
 
                     {/* Pricing highlight */}
-                    <div style={{ background: "#1e293b", borderRadius: "10px", padding: "16px", marginBottom: "20px", display: "flex", justifyContent: "space-between" }}>
+                    <div style={{ background: "#1e293b", borderRadius: "10px", padding: "16px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div>
                             <p style={{ margin: 0, fontSize: "11px", color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>Selling Price</p>
                             <p style={{ margin: "4px 0 0", fontSize: "22px", color: "#f1f5f9", fontWeight: 800 }}>
@@ -115,9 +120,21 @@ const ProductDrawer: React.FC<Props> = ({ product, onClose }) => {
                         <p style={{ color: "#64748b", fontSize: "13px" }}>Loading full details...</p>
                     ) : detail ? (
                         <>
+                            <button 
+                                onClick={() => setShowRfq(true)}
+                                style={{
+                                    width: "100%", padding: "12px", background: "#2563eb", color: "#fff",
+                                    border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 600,
+                                    cursor: "pointer", marginBottom: "24px", display: "flex", justifyContent: "center", gap: "8px"
+                                }}>
+                                <span>📄</span> Request For Quote (RFQ)
+                            </button>
+
                             {row("SKU", <code style={{ fontSize: "12px" }}>{detail.stock_keeping_unit}</code>)}
                             {row("Vendor ID", detail.vendor_id)}
-                            {row("Stock", `${detail.available_stock_quantity} ${detail.unit_of_measure ?? "units"}`)}
+                            {row("Status", detail.status)}
+                            {row("Avail. Stock", `${detail.available_stock_quantity} ${detail.unit_of_measure ?? "units"}`)}
+                            {row("Reserved Stock", detail.reserved_stock_quantity)}
                             {row("Reorder Level", detail.reorder_alert_level)}
                             {row("Min. Order Qty", detail.minimum_order_quantity)}
                             {row("Discount", detail.discount_percentage ? `${detail.discount_percentage}%` : "—")}
@@ -126,7 +143,6 @@ const ProductDrawer: React.FC<Props> = ({ product, onClose }) => {
                             {row("Weight", detail.weight_in_kg ? `${detail.weight_in_kg} kg` : "—")}
                             {row("Dimensions", detail.dimensions_in_cm)}
                             {row("Barcode", detail.barcode_number)}
-                            {row("Active", detail.is_active ? "✅ Yes" : "❌ No")}
                             {row("Created", detail.created_at ? new Date(detail.created_at).toLocaleDateString("en-IN") : "—")}
 
                             {detail.product_description && (
@@ -138,13 +154,18 @@ const ProductDrawer: React.FC<Props> = ({ product, onClose }) => {
                                 </div>
                             )}
 
-                            {/* AI hooks placeholder */}
-                            <div style={{ marginTop: "20px", background: "#0a192f", borderRadius: "8px", padding: "12px", border: "1px dashed #1e4080" }}>
-                                <p style={{ margin: "0 0 4px", fontSize: "11px", color: "#3b82f6", fontWeight: 700 }}>🤖 AI Intelligence (Coming Soon)</p>
-                                <p style={{ margin: 0, color: "#475569", fontSize: "12px" }}>
-                                    Vendor Reliability Score · Demand Trend Indicator · Smart Ranking
-                                </p>
-                            </div>
+                            {/* RFQ Modal */}
+                            {showRfq && (
+                                <RFQModal 
+                                    product={detail}
+                                    manufacturerId={1} // Hardcoded for demo
+                                    onClose={() => setShowRfq(false)}
+                                    onSuccess={() => {
+                                        alert("RFQ Submitted successfully");
+                                        setShowRfq(false);
+                                    }}
+                                />
+                            )}
                         </>
                     ) : (
                         <p style={{ color: "#64748b", fontSize: "13px" }}>Could not load full details.</p>

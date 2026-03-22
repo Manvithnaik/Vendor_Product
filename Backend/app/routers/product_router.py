@@ -164,6 +164,45 @@ async def get_category_distribution(db: Session = Depends(get_db)):
     return await CatalogAnalyticsService.get_category_distribution(db)
 
 
+from app.analytics.alert_engine import AlertEngine
+from app.analytics.demand_analyzer import DemandAnalyzer
+from app.repository.product_repository import ProductRepository
+from app.exceptions.product_exceptions import ProductNotFoundException
+
+@analytics_router.get(
+    "/alerts/{product_id}",
+    summary="Get Professional Product Alerts",
+    description="Deterministic alerts for stock levels, demand spikes, and reservations.",
+)
+async def get_product_alerts(product_id: int, db: Session = Depends(get_db)):
+    product = ProductRepository.get_by_id(db, product_id)
+    if not product:
+        raise ProductNotFoundException(product_id)
+        
+    alerts = []
+    
+    # Stock and Reservation Alerts
+    alerts.extend(AlertEngine.generate_stock_alerts(product))
+    
+    # Demand Alerts (mocked 24h demand logic)
+    recent_demand = DemandAnalyzer.get_recent_demand(db, product.product_id)
+    alerts.extend(AlertEngine.generate_demand_alerts(product, recent_demand))
+    
+    # Price Competitiveness Alerts
+    category_avg = DemandAnalyzer.get_category_average_price(db, product.category_name)
+    alerts.extend(AlertEngine.generate_price_alerts(
+        product.vendor.company_name if product.vendor else "Unknown", 
+        product.selling_price, 
+        category_avg
+    ))
+    
+    return ApiResponse(
+        status="success", 
+        message="Alerts generated successfully.", 
+        data=alerts
+    )
+
+
 # ── Export composite router ───────────────────────────────────────────
 router = APIRouter()
 router.include_router(catalog_router)

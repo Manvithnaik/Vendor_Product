@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 from typing import Optional, List, Any
 from decimal import Decimal
 from datetime import datetime
+from app.models.product_model import ProductStatus
 
 
 # ──────────────────────────────────────────
@@ -82,7 +83,7 @@ class ProductUpdate(BaseModel):
     product_description: Optional[str] = None
     product_image_url: Optional[str] = None
     minimum_order_quantity: Optional[int] = None
-    is_active: Optional[bool] = None
+    status: Optional[ProductStatus] = None
 
 
 class StockUpdateRequest(BaseModel):
@@ -100,7 +101,7 @@ class ProductFilterQuery(BaseModel):
     min_price: Optional[Decimal] = None
     max_price: Optional[Decimal] = None
     min_stock: Optional[int] = None
-    is_active: Optional[bool] = True
+    status: Optional[ProductStatus] = ProductStatus.PUBLISHED
     sort_by: Optional[str] = Field(None, description="Column to sort by e.g. selling_price, product_name")
     sort_dir: Optional[str] = Field("asc", description="asc | desc")
 
@@ -127,7 +128,6 @@ class ProductListItem(BaseModel):
     effective_price: Decimal
     stock_status: str
 
-    # AI-ready hook placeholders (no ML yet)
     vendor_reliability_score: Optional[float] = None
     demand_trend_indicator: Optional[str] = None
 
@@ -141,7 +141,8 @@ class ProductDetailResponse(ProductBase):
 
     product_id: int
     vendor_id: int
-    is_active: bool
+    status: ProductStatus
+    reserved_stock_quantity: int
 
     effective_price: Decimal
     stock_status: str

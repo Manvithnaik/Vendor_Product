@@ -8,19 +8,26 @@ from sqlalchemy import (
     Text,
     TIMESTAMP,
     ForeignKey,
-    Index
+    Index,
+    Enum
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-
 from app.core.database import Base
+from app.models.vendor_model import Vendor
+import enum
 
+class ProductStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    PENDING_REVIEW = "PENDING_REVIEW"
+    PUBLISHED = "PUBLISHED"
+    ARCHIVED = "ARCHIVED"
 
 class Product(Base):
     __tablename__ = "products"
 
-    product_id = Column(BigInteger, primary_key=True, index=True)
-    vendor_id = Column(BigInteger, ForeignKey("vendors.vendor_id"), nullable=False, index=True)
+    product_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    vendor_id = Column(Integer, ForeignKey("vendors.vendor_id"), nullable=False, index=True)
 
     product_name = Column(String(255), nullable=False, index=True)
     category_name = Column(String(100), index=True)
@@ -37,6 +44,7 @@ class Product(Base):
 
     minimum_order_quantity = Column(Integer, nullable=False)
     available_stock_quantity = Column(Integer, nullable=False, default=0)
+    reserved_stock_quantity = Column(Integer, nullable=False, default=0)
     reorder_alert_level = Column(Integer, default=0)
 
     unit_of_measure = Column(String(50))
@@ -46,13 +54,13 @@ class Product(Base):
     product_description = Column(Text)
     product_image_url = Column(String(255))
 
-    is_active = Column(Boolean, default=True, index=True)
+    status = Column(Enum(ProductStatus), default=ProductStatus.DRAFT, nullable=False, index=True)
 
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), onupdate=func.now())
 
     # Relationship to Vendor (within module scope)
-    vendor = relationship("Vendor", back_populates="products")
+    vendor = relationship(lambda: __import__('app.models.vendor_model', fromlist=['Vendor']).Vendor, back_populates="products")
     # NOTE: OrderItem relationship intentionally omitted — order module is decoupled.
 
     # Composite Indexes for heavy filtering

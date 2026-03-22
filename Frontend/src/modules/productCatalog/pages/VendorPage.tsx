@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import type { ProductListItem } from "../types/product";
+import type { ProductListItem, ProductCreatePayload } from "../types/product";
 import { vendorApi } from "../services/productService";
 import type { Pagination } from "../types/product";
 import ProductTable from "../components/ProductTable";
-import ProductDrawer from "../components/ProductDrawer";
+import ProductForm from "../components/ProductForm";
+import VendorRfqPanel from "../components/VendorRfqPanel";
 
-// Hardcoded vendor for this module — real auth would inject this
 const VENDOR_ID = 1;
 
 const VendorPage: React.FC = () => {
@@ -13,12 +13,12 @@ const VendorPage: React.FC = () => {
     const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total_records: 0, total_pages: 0 });
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
-    const [selected, setSelected] = useState<ProductListItem | null>(null);
-
-    // Stock edit state
-    const [stockTarget, setStockTarget] = useState<ProductListItem | null>(null);
-    const [newStock, setNewStock] = useState("");
-    const [stockLoading, setStockLoading] = useState(false);
+    
+    // Add product state
+    const [isAdding, setIsAdding] = useState(false);
+    
+    // Tabs state
+    const [activeTab, setActiveTab] = useState<'catalog' | 'rfq'>('catalog');
 
     const fetch = useCallback(async () => {
         setLoading(true);
@@ -36,111 +36,153 @@ const VendorPage: React.FC = () => {
     useEffect(() => { fetch(); }, [fetch]);
 
     const handleDelete = async (product: ProductListItem) => {
-        if (!confirm(`Deactivate "${product.product_name}"? It won't appear in the catalog.`)) return;
+        if (!confirm(`Deactivate "${product.product_name}"?`)) return;
         await vendorApi.softDeleteProduct(product.product_id);
         fetch();
     };
 
-    const handleStockSave = async () => {
-        if (!stockTarget || isNaN(Number(newStock))) return;
-        setStockLoading(true);
+    const handleCreate = async (payload: ProductCreatePayload) => {
         try {
-            await vendorApi.updateStock(stockTarget.product_id, { available_stock_quantity: Number(newStock) });
-            setStockTarget(null);
-            setNewStock("");
+            await vendorApi.createProduct(payload);
+            setIsAdding(false);
             fetch();
-        } finally {
-            setStockLoading(false);
+        } catch (e: any) {
+            console.error("Failed to create product", e);
+            alert(e.response?.data?.message || e.message || "Failed to create product");
         }
     };
 
-    const inputStyle: React.CSSProperties = {
-        padding: "8px 12px", background: "#0f172a", border: "1px solid #334155",
-        borderRadius: "6px", color: "#f1f5f9", fontSize: "14px", width: "100%", boxSizing: "border-box",
+    // Quick inline stock update function (called from the table component directly contextually)
+    const handleQuickStockUpdate = async (productId: number, qtyDiff: number, currentQty: number) => {
+        const newStock = Math.max(0, currentQty + qtyDiff);
+        if (newStock === currentQty) return;
+        
+        // Optimistic UI update
+        setProducts(prev => prev.map(p => p.product_id === productId ? { ...p, available_stock_quantity: newStock } : p));
+        
+        try {
+            await vendorApi.updateStock(productId, { available_stock_quantity: newStock });
+        } catch {
+            // Revert on failure
+            fetch(); 
+        }
     };
 
     return (
         <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
-            <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                <div style={{ padding: "16px 24px", borderBottom: "1px solid #1e293b", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
+                {/* Header */}
+                <div style={{ padding: "20px 28px", borderBottom: "1px solid #1e293b", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                     <div>
-                        <h1 style={{ margin: 0, fontSize: "20px", color: "#f1f5f9", fontWeight: 700 }}>
+                        <h1 style={{ margin: 0, fontSize: "22px", color: "#f1f5f9", fontWeight: 800 }}>
                             🏭 My Products
                         </h1>
-                        <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b" }}>
-                            Vendor #{VENDOR_ID} · {loading ? "Loading..." : `${pagination.total_records} products`}
+                        <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#94a3b8" }}>
+                            Manage your catalog listings & inventory levels
                         </p>
                     </div>
-                </div>
-
-                <div style={{ flex: 1, overflowY: "auto" }}>
-                    <ProductTable
-                        products={products}
-                        loading={loading}
-                        onRowClick={setSelected}
-                        sortBy=""
-                        sortDir="asc"
-                        onSort={() => { }}
-                        showVendorControls
-                        onEditStock={(p) => { setStockTarget(p); setNewStock(String(p.available_stock_quantity)); }}
-                        onDelete={handleDelete}
-                    />
-                </div>
-
-                {/* Pagination */}
-                <div style={{ padding: "12px 24px", borderTop: "1px solid #1e293b", display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-                    <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}
-                        style={{ padding: "6px 14px", background: "#1e293b", border: "1px solid #334155", borderRadius: "6px", color: page <= 1 ? "#475569" : "#e2e8f0", cursor: page <= 1 ? "not-allowed" : "pointer", fontSize: "13px" }}>
-                        ← Prev
-                    </button>
-                    <span style={{ color: "#64748b", fontSize: "13px" }}>Page {pagination.page} of {pagination.total_pages || 1}</span>
-                    <button disabled={page >= pagination.total_pages} onClick={() => setPage((p) => p + 1)}
-                        style={{ padding: "6px 14px", background: "#1e293b", border: "1px solid #334155", borderRadius: "6px", color: page >= pagination.total_pages ? "#475569" : "#e2e8f0", cursor: page >= pagination.total_pages ? "not-allowed" : "pointer", fontSize: "13px" }}>
-                        Next →
+                    <button 
+                        onClick={() => setIsAdding(true)}
+                        style={{
+                            padding: "10px 18px", background: "#3b82f6", color: "#fff",
+                            border: "none", borderRadius: "8px", fontWeight: 700,
+                            fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
+                            boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)",
+                            transition: "all 0.2s"
+                        }}
+                    >
+                        <span>＋</span> Add Product
                     </button>
                 </div>
-            </main>
 
-            <ProductDrawer product={selected} onClose={() => setSelected(null)} />
+                {/* Tab Navigation */}
+                <div style={{ display: "flex", borderBottom: "1px solid #1e293b", background: "#0f172a", padding: "0 28px" }}>
+                    <button 
+                        onClick={() => setActiveTab('catalog')}
+                        style={{
+                            padding: "16px 20px", background: "transparent", color: activeTab === 'catalog' ? "#3b82f6" : "#94a3b8",
+                            border: "none", borderBottom: `2px solid ${activeTab === 'catalog' ? "#3b82f6" : "transparent"}`,
+                            fontWeight: 600, fontSize: "14px", cursor: "pointer", transition: "all 0.2s"
+                        }}
+                    >
+                        My Catalog
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('rfq')}
+                        style={{
+                            padding: "16px 20px", background: "transparent", color: activeTab === 'rfq' ? "#3b82f6" : "#94a3b8",
+                            border: "none", borderBottom: `2px solid ${activeTab === 'rfq' ? "#3b82f6" : "transparent"}`,
+                            fontWeight: 600, fontSize: "14px", cursor: "pointer", transition: "all 0.2s"
+                        }}
+                    >
+                        Incoming Quotes (RFQs)
+                    </button>
+                </div>
 
-            {/* Stock update modal */}
-            {stockTarget && (
-                <>
-                    <div onClick={() => setStockTarget(null)}
-                        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(2px)", zIndex: 60 }} />
-                    <div style={{
-                        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-                        background: "#0f172a", border: "1px solid #334155", borderRadius: "12px",
-                        padding: "28px 32px", zIndex: 70, width: "340px",
-                    }}>
-                        <h3 style={{ margin: "0 0 8px", color: "#f1f5f9", fontSize: "16px" }}>Update Stock</h3>
-                        <p style={{ margin: "0 0 18px", color: "#64748b", fontSize: "13px" }}>
-                            {stockTarget.product_name}
-                        </p>
-                        <label style={{ display: "block", marginBottom: "6px", fontSize: "12px", color: "#94a3b8", fontWeight: 600 }}>
-                            New Quantity
-                        </label>
-                        <input
-                            style={inputStyle}
-                            type="number"
-                            min="0"
-                            value={newStock}
-                            onChange={(e) => setNewStock(e.target.value)}
-                            autoFocus
+                {/* Main Content Area */}
+                <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+                    {activeTab === 'catalog' ? (
+                        <div style={{ background: "#0f172a", borderRadius: "12px", border: "1px solid #1e293b", overflow: "hidden" }}>
+                            <ProductTable
+                                products={products}
+                            loading={loading}
+                            onRowClick={() => {}}
+                            sortBy=""
+                            sortDir="asc"
+                            onSort={() => {}}
+                            showVendorControls
+                            onDelete={handleDelete}
+                            onQuickStockUpdate={handleQuickStockUpdate}
                         />
-                        <div style={{ display: "flex", gap: "10px", marginTop: "18px" }}>
-                            <button onClick={handleStockSave} disabled={stockLoading}
-                                style={{ flex: 1, padding: "10px", background: "#1d4ed8", border: "none", borderRadius: "6px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "14px" }}>
-                                {stockLoading ? "Saving..." : "Save"}
-                            </button>
-                            <button onClick={() => setStockTarget(null)}
-                                style={{ flex: 1, padding: "10px", background: "#1e293b", border: "1px solid #334155", borderRadius: "6px", color: "#94a3b8", fontWeight: 600, cursor: "pointer", fontSize: "14px" }}>
-                                Cancel
-                            </button>
+
+                        {/* Pagination */}
+                        <div style={{ padding: "14px 20px", borderTop: "1px solid #1e293b", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#0b1120" }}>
+                            <span style={{ color: "#64748b", fontSize: "13px" }}>
+                                Showing {products.length} of {pagination.total_records}
+                            </span>
+                            <div style={{ display: "flex", gap: "8px" }}>
+                                <button disabled={page <= 1} onClick={() => setPage(page - 1)}
+                                    style={{ padding: "6px 14px", background: "#1e293b", border: "1px solid #334155", borderRadius: "6px", color: page <= 1 ? "#475569" : "#e2e8f0", cursor: page <= 1 ? "not-allowed" : "pointer", fontSize: "13px" }}>
+                                    Prev
+                                </button>
+                                <button disabled={page >= pagination.total_pages} onClick={() => setPage(page + 1)}
+                                    style={{ padding: "6px 14px", background: "#1e293b", border: "1px solid #334155", borderRadius: "6px", color: page >= pagination.total_pages ? "#475569" : "#e2e8f0", cursor: page >= pagination.total_pages ? "not-allowed" : "pointer", fontSize: "13px" }}>
+                                    Next
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </>
-            )}
+                    ) : (
+                        <VendorRfqPanel vendorId={VENDOR_ID} />
+                    )}
+                </div>
+
+                {/* Add Product Overlap Drawer */}
+                {isAdding && (
+                    <div style={{
+                        position: "absolute", top: 0, right: 0, bottom: 0, width: "400px",
+                        background: "#0f172a", borderLeft: "1px solid #1e293b",
+                        boxShadow: "-10px 0 40px rgba(0,0,0,0.5)",
+                        display: "flex", flexDirection: "column", zIndex: 50,
+                        animation: "slideIn 0.3s ease-out"
+                    }}>
+                        <div style={{ padding: "20px", borderBottom: "1px solid #1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <h2 style={{ margin: 0, fontSize: "18px", color: "#f1f5f9" }}>Add New Product</h2>
+                            <button onClick={() => setIsAdding(false)} style={{ background: "transparent", border: "none", color: "#94a3b8", fontSize: "20px", cursor: "pointer" }}>×</button>
+                        </div>
+                        <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+                            <ProductForm vendorId={VENDOR_ID} onSubmit={handleCreate} onCancel={() => setIsAdding(false)} />
+                        </div>
+                    </div>
+                )}
+                
+                <style>{`
+                    @keyframes slideIn {
+                        from { transform: translateX(100%); }
+                        to { transform: translateX(0); }
+                    }
+                `}</style>
+            </main>
         </div>
     );
 };

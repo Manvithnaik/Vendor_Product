@@ -8,6 +8,8 @@ export interface ApiResponse<T> {
     data: T;
 }
 
+export type ProductStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "ARCHIVED";
+
 export interface Pagination {
     page: number;
     limit: number;
@@ -37,6 +39,7 @@ export interface ProductListItem {
     stock_keeping_unit: string;
     selling_price: number;
     available_stock_quantity: number;
+    reserved_stock_quantity?: number;
     // Computed
     effective_price: number;
     stock_status: "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
@@ -67,7 +70,8 @@ export interface ProductDetail {
     dimensions_in_cm: string | null;
     product_description: string | null;
     product_image_url: string | null;
-    is_active: boolean;
+    status: ProductStatus;
+    reserved_stock_quantity: number;
     effective_price: number;
     stock_status: "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
     vendor_reliability_score: number | null;
@@ -110,7 +114,7 @@ export interface ProductUpdatePayload {
     tax_percentage?: number;
     reorder_alert_level?: number;
     product_description?: string;
-    is_active?: boolean;
+    status?: ProductStatus;
     minimum_order_quantity?: number;
 }
 
@@ -129,6 +133,7 @@ export interface ProductFilters {
     min_price?: number;
     max_price?: number;
     min_stock?: number;
+    status?: ProductStatus;
     sort_by?: string;
     sort_dir?: "asc" | "desc";
 }

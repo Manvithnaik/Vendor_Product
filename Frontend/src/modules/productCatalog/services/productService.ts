@@ -1,4 +1,4 @@
-import axiosClient from "@/shared/axiosClient";
+import axiosClient from "../../../shared/axiosClient";
 import type {
     ApiResponse,
     PaginatedApiResponse,

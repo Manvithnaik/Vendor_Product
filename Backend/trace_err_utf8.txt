@@ -1,0 +1,5 @@
+﻿[WARNING] Incomplete or legacy dummy data detected. Resetting catalog for dummy data...
+[ERROR] Seeding failed: (sqlite3.IntegrityError) NOT NULL constraint failed: products.product_id
+[SQL: INSERT INTO products (vendor_id, product_name, category_name, sub_category_name, brand_name, stock_keeping_unit, barcode_number, selling_price, cost_price, discount_percentage, tax_percentage, minimum_order_quantity, available_stock_quantity, reorder_alert_level, unit_of_measure, weight_in_kg, dimensions_in_cm, product_description, product_image_url, is_active, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING product_id, created_at]
+[parameters: (1, 'Industrial Steel Rod', 'Steel', 'Structural', 'TATA', 'STL-001', None, 500.0, 380.0, 5.0, 18.0, 10, 120, 30, 'kg', None, None, 'High-tensile industrial steel rod for structural applications.', None, 1, None)]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
